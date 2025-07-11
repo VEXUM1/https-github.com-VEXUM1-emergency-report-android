@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>緊急通報</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        body { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f0f0f0; text-align: center; font-family: sans-serif; }
+        #reportButton { font-size: 24px; padding: 20px 40px; cursor: pointer; border-radius: 10px; border: none; background-color: #d9534f; color: white; margin-top: 10px; }
+        #userInfo { font-size: 16px; color: #333; }
+        #changeIdLink { font-size: 14px; color: #007bff; cursor: pointer; text-decoration: underline; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <p id="userInfo"></p>
+    <button id="reportButton">緊急通報</button>
+    <a id="changeIdLink">IDを変更する</a>
+
+    <script>
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbyiqIi4ynq8o8D8gr4YWbd0s_AMTkeMb4tESAyOHeR8fBYAgc7D7_9ascwDh1b_upcQEw/exec';
+
+        const reportButton = document.getElementById('reportButton');
+        const userInfoDisplay = document.getElementById('userInfo');
+        const changeIdLink = document.getElementById('changeIdLink');
+
+        function setupUser() {
+            let userId = localStorage.getItem('emergencyReportUserID');
+            if (!userId) {
+                userId = prompt("【初回登録】\n職員IDを入力してください。\n（例：tanaka1）");
+                if (userId) {
+                    localStorage.setItem('emergencyReportUserID', userId);
+                    alert(`ID「${userId}」を登録しました。\n次回から自動でこのIDが使用されます。`);
+                } else {
+                    alert("IDが未入力のため通報できません。");
+                    reportButton.disabled = true;
+                    return;
+                }
+            }
+            userInfoDisplay.textContent = `通報者ID: ${userId}`;
+        }
+
+        reportButton.addEventListener('click', () => {
+            const userId = localStorage.getItem('emergencyReportUserID');
+            if (!userId) {
+                alert("IDが登録されていません。ページを再読み込みして登録してください。");
+                return;
+            }
+            if (!confirm(`ID「${userId}」として通報しますか？`)) {
+                alert('キャンセルしました。');
+                return;
+            }
+            alert('位置情報を取得し、通報します...');
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    const reportUrl = `${GAS_URL}?id=${userId}&lat=${lat}&lon=${lon}`;
+                    fetch(reportUrl, { mode: 'no-cors' })
+                        .then(() => alert('通報が完了しました。'))
+                        .catch(error => alert('通報に失敗しました。'));
+                },
+                (error) => {
+                    alert('位置情報の取得に失敗しました。\nスマートフォンの設定を確認してください。');
+                }
+            );
+        });
+
+        changeIdLink.addEventListener('click', () => {
+            if (confirm("IDをリセットして再登録しますか？")) {
+                localStorage.removeItem('emergencyReportUserID');
+                alert("IDをリセットしました。ページを再読み込みします。");
+                window.location.reload();
+            }
+        });
+
+        setupUser();
+    </script>
+</body>
+</html>
