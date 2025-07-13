@@ -18,6 +18,7 @@
     <a id="changeIdLink">IDを変更する</a>
 
     <script>
+        // ★★★ あなたのGASのURLを貼り付けてください ★★★
         const GAS_URL = 'https://script.google.com/macros/s/AKfycbyiqIi4ynq8o8D8gr4YWbd0s_AMTkeMb4tESAyOHeR8fBYAgc7D7_9ascwDh1b_upcQEw/exec';
 
         const reportButton = document.getElementById('reportButton');
@@ -50,22 +51,43 @@
                 alert('キャンセルしました。');
                 return;
             }
-            alert('位置情報を取得し、通報します...');
+            alert('位置情報を取得して通報します...');
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     const lat = position.coords.latitude;
                     const lon = position.coords.longitude;
-                    const reportUrl = `${GAS_URL}?id=${userId}&lat=${lat}&lon=${lon}`;
-                    fetch(reportUrl, { mode: 'no-cors' })
-                        .then(() => alert('通報が完了しました。'))
-                        .catch(error => alert('通報に失敗しました。'));
+
+                    // ★★★ ここからがiPhoneと方式を合わせるための修正部分です ★★★
+                    // GASにPOST形式で送るためのデータを作成
+                    const postData = {
+                        userId: userId,
+                        lat: lat,
+                        lon: lon
+                    };
+
+                    // fetch APIを使ってPOSTリクエストを送信
+                    fetch(GAS_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'text/plain;charset=utf-8',
+                        },
+                        body: JSON.stringify(postData) // データをJSON文字列に変換
+                    })
+                    .then(response => {
+                        alert('通報が完了しました。');
+                    })
+                    .catch(error => {
+                        alert('通報処理でエラーが発生しました。');
+                        console.error('Error:', error);
+                    });
+                    // ★★★ ここまでが修正部分です ★★★
                 },
                 (error) => {
                     alert('位置情報の取得に失敗しました。\nスマートフォンの設定を確認してください。');
                 }
             );
         });
-
+        
         changeIdLink.addEventListener('click', () => {
             if (confirm("IDをリセットして再登録しますか？")) {
                 localStorage.removeItem('emergencyReportUserID');
