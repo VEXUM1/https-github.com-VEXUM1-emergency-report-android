@@ -8,27 +8,35 @@
     <style>
         body { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f0f0f0; text-align: center; font-family: sans-serif; }
         #reportButton { font-size: 24px; padding: 20px 40px; cursor: pointer; border-radius: 10px; border: none; background-color: #d9534f; color: white; margin-top: 10px; }
+        #reportButton:disabled { background-color: #999; }
         #userInfo { font-size: 16px; color: #333; }
         #changeIdLink { font-size: 14px; color: #007bff; cursor: pointer; text-decoration: underline; margin-top: 20px; }
+        /* ★★★ 状況表示メッセージ用のスタイルを追加 ★★★ */
+        #statusMessage { font-size: 18px; font-weight: bold; min-height: 27px; }
+        .status-sending { color: #007bff; } /* 通報中：青 */
+        .status-success { color: #28a745; } /* 成功：緑 */
+        .status-error { color: #dc3545; }   /* 失敗：赤 */
     </style>
 </head>
 <body>
     <p id="userInfo"></p>
     <button id="reportButton">緊急通報</button>
     <a id="changeIdLink">IDを変更する</a>
+    <p id="statusMessage"></p>
 
     <script>
-        // ★★★ あなたのGASのURLを貼り付けてください ★★★
-        const GAS_URL = 'https://script.google.com/macros/s/AKfycbykTOkRBbKCHmtrFC5mX_EePdwJ5hFubOjiyRam9iGOs44KUKWj61wm7oiWz2FHdWY9/exec';
+        // ★★★ あなたの会社のGASのURLを貼り付けてください ★★★
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbxbigRQW9Fh4y7Bv-OEhGtcgufR8BGm_9RvODgTkZKxwJJ2EUEr613vb7QscX7Hr_YG/exec';
 
         const reportButton = document.getElementById('reportButton');
         const userInfoDisplay = document.getElementById('userInfo');
         const changeIdLink = document.getElementById('changeIdLink');
+        const statusMessage = document.getElementById('statusMessage'); // ★★★ 状況表示用の要素を取得 ★★★
 
         function setupUser() {
             let userId = localStorage.getItem('emergencyReportUserID');
             if (!userId) {
-                userId = prompt("【初回登録】\n職員IDを入力してください。\n（例：tanaka1）");
+                userId = prompt("【初回登録】\n職員IDを入力してください。\n（例：1001）");
                 if (userId) {
                     localStorage.setItem('emergencyReportUserID', userId);
                     alert(`ID「${userId}」を登録しました。\n次回から自動でこのIDが使用されます。`);
@@ -41,54 +49,52 @@
             userInfoDisplay.textContent = `通報者ID: ${userId}`;
         }
 
+        // ★★★ ボタンが押された後の動作を大幅に修正 ★★★
         reportButton.addEventListener('click', () => {
             const userId = localStorage.getItem('emergencyReportUserID');
             if (!userId) {
-                alert("IDが登録されていません。ページを再読み込みして登録してください。");
+                statusMessage.className = 'status-error';
+                statusMessage.textContent = 'IDが未登録です。再読み込みしてください。';
                 return;
             }
-            if (!confirm(`ID「${userId}」として通報しますか？`)) {
-                alert('キャンセルしました。');
-                return;
-            }
-            alert('位置情報を取得して通報します...');
+
+            // ボタンを無効化し、メッセージを表示
+            reportButton.disabled = true;
+            statusMessage.className = 'status-sending';
+            statusMessage.textContent = '通報中...';
+
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     const lat = position.coords.latitude;
                     const lon = position.coords.longitude;
+                    const postData = { userId: userId, lat: lat, lon: lon };
 
-                    // ★★★ ここからがiPhoneと方式を合わせるための修正部分です ★★★
-                    // GASにPOST形式で送るためのデータを作成
-                    const postData = {
-                        userId: userId,
-                        lat: lat,
-                        lon: lon
-                    };
-
-                    // fetch APIを使ってPOSTリクエストを送信
                     fetch(GAS_URL, {
                         method: 'POST',
-                        mode: 'no-cors', // ★★★ この行を追加 ★★★
-                        headers: {
-                            'Content-Type': 'text/plain;charset=utf-8',
-                        },
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                         body: JSON.stringify(postData)
-                    })                    .then(response => {
-                        alert('通報が完了しました。');
+                    })
+                    .then(response => {
+                        statusMessage.className = 'status-success';
+                        statusMessage.textContent = '通報が完了しました。';
                     })
                     .catch(error => {
-                        alert('通報処理でエラーが発生しました。');
-                        console.error('Error:', error);
+                        statusMessage.className = 'status-error';
+                        statusMessage.textContent = '通報に失敗しました。';
+                        reportButton.disabled = false; // エラー時は再度押せるようにする
                     });
-                    // ★★★ ここまでが修正部分です ★★★
                 },
                 (error) => {
-                    alert('位置情報の取得に失敗しました。\nスマートフォンの設定を確認してください。');
+                    statusMessage.className = 'status-error';
+                    statusMessage.textContent = '位置情報の取得に失敗しました。';
+                    reportButton.disabled = false; // エラー時は再度押せるようにする
                 }
             );
         });
         
         changeIdLink.addEventListener('click', () => {
+            if (reportButton.disabled) return; // 通報中はID変更不可
             if (confirm("IDをリセットして再登録しますか？")) {
                 localStorage.removeItem('emergencyReportUserID');
                 alert("IDをリセットしました。ページを再読み込みします。");
