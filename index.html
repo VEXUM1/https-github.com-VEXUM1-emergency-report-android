@@ -11,45 +11,72 @@
         #reportButton:disabled { background-color: #999; }
         #userInfo { font-size: 16px; color: #333; }
         #changeIdLink { font-size: 14px; color: #007bff; cursor: pointer; text-decoration: underline; margin-top: 20px; }
-        /* ★★★ 状況表示メッセージ用のスタイルを追加 ★★★ */
         #statusMessage { font-size: 18px; font-weight: bold; min-height: 27px; }
-        .status-sending { color: #007bff; } /* 通報中：青 */
-        .status-success { color: #28a745; } /* 成功：緑 */
-        .status-error { color: #dc3545; }   /* 失敗：赤 */
+        .status-sending { color: #007bff; }
+        .status-success { color: #28a745; }
+        .status-error { color: #dc3545; }
+        /* ★★★ 初回登録フォーム用のスタイルを追加 ★★★ */
+        #registrationForm {
+            display: none; /* 初期状態では非表示 */
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            display: flex; justify-content: center; align-items: center; flex-direction: column;
+        }
+        #registrationBox { background-color: white; padding: 20px; border-radius: 10px; text-align: center; }
+        #userIdInput { font-size: 16px; padding: 10px; margin-top: 10px; width: 80%; }
+        #registerButton { font-size: 16px; padding: 10px 20px; margin-top: 15px; }
     </style>
 </head>
 <body>
+    <div id="registrationForm" style="display: none;">
+        <div id="registrationBox">
+            <p>【初回登録】<br>あなたの職員IDを入力してください。</p>
+            <input type="number" id="userIdInput" placeholder="例：1001">
+            <button id="registerButton">登録する</button>
+        </div>
+    </div>
+
     <p id="userInfo"></p>
     <button id="reportButton">緊急通報</button>
     <a id="changeIdLink">IDを変更する</a>
     <p id="statusMessage"></p>
 
     <script>
-        // ★★★ あなたの会社のGASのURLを貼り付けてください ★★★
         const GAS_URL = 'https://script.google.com/macros/s/AKfycbzXy6LQhlnO0FoI2wYF0haWOQv4AYS9pPXis2OuTV1k3S2pR_-RmJRT5YvrkMDr0b1d/exec';
 
         const reportButton = document.getElementById('reportButton');
         const userInfoDisplay = document.getElementById('userInfo');
         const changeIdLink = document.getElementById('changeIdLink');
-        const statusMessage = document.getElementById('statusMessage'); // ★★★ 状況表示用の要素を取得 ★★★
+        const statusMessage = document.getElementById('statusMessage');
+        // ★★★ 登録フォーム用の要素を取得 ★★★
+        const registrationForm = document.getElementById('registrationForm');
+        const userIdInput = document.getElementById('userIdInput');
+        const registerButton = document.getElementById('registerButton');
 
         function setupUser() {
             let userId = localStorage.getItem('emergencyReportUserID');
             if (!userId) {
-                userId = prompt("【初回登録】\n職員IDを入力してください。\n（例：1001）");
-                if (userId) {
-                    localStorage.setItem('emergencyReportUserID', userId);
-                    alert(`ID「${userId}」を登録しました。\n次回から自動でこのIDが使用されます。`);
-                } else {
-                    alert("IDが未入力のため通報できません。");
-                    reportButton.disabled = true;
-                    return;
-                }
+                // ★★★ promptの代わりに登録フォームを表示 ★★★
+                registrationForm.style.display = 'flex';
+                reportButton.style.display = 'none'; // 通報ボタンなどを隠す
+                changeIdLink.style.display = 'none';
+            } else {
+                userInfoDisplay.textContent = `通報者ID: ${userId}`;
             }
-            userInfoDisplay.textContent = `通報者ID: ${userId}`;
         }
+        
+        // ★★★ 新しい登録ボタンの処理 ★★★
+        registerButton.addEventListener('click', () => {
+            const userId = userIdInput.value;
+            if (userId) {
+                localStorage.setItem('emergencyReportUserID', userId);
+                alert(`ID「${userId}」を登録しました。\nアプリを再読み込みします。`);
+                window.location.reload(); // ページをリロードして通報画面に切り替える
+            } else {
+                alert("IDが未入力です。");
+            }
+        });
 
-        // ★★★ ボタンが押された後の動作を大幅に修正 ★★★
         reportButton.addEventListener('click', () => {
             const userId = localStorage.getItem('emergencyReportUserID');
             if (!userId) {
@@ -57,8 +84,6 @@
                 statusMessage.textContent = 'IDが未登録です。再読み込みしてください。';
                 return;
             }
-
-            // ボタンを無効化し、メッセージを表示
             reportButton.disabled = true;
             statusMessage.className = 'status-sending';
             statusMessage.textContent = '通報中...';
@@ -68,7 +93,6 @@
                     const lat = position.coords.latitude;
                     const lon = position.coords.longitude;
                     const postData = { userId: userId, lat: lat, lon: lon };
-
                     fetch(GAS_URL, {
                         method: 'POST',
                         mode: 'no-cors',
@@ -82,19 +106,19 @@
                     .catch(error => {
                         statusMessage.className = 'status-error';
                         statusMessage.textContent = '通報に失敗しました。';
-                        reportButton.disabled = false; // エラー時は再度押せるようにする
+                        reportButton.disabled = false;
                     });
                 },
                 (error) => {
                     statusMessage.className = 'status-error';
                     statusMessage.textContent = '位置情報の取得に失敗しました。';
-                    reportButton.disabled = false; // エラー時は再度押せるようにする
+                    reportButton.disabled = false;
                 }
             );
         });
         
         changeIdLink.addEventListener('click', () => {
-            if (reportButton.disabled) return; // 通報中はID変更不可
+            if (reportButton.disabled) return;
             if (confirm("IDをリセットして再登録しますか？")) {
                 localStorage.removeItem('emergencyReportUserID');
                 alert("IDをリセットしました。ページを再読み込みします。");
@@ -102,6 +126,7 @@
             }
         });
 
+        // 最初に実行
         setupUser();
     </script>
 </body>
